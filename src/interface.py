@@ -52,12 +52,12 @@ def build_gradio_app(tokenizer, model):
 
     def predict(text):
         if not text.strip():
-            return "—", {}, ""
+            return "—", {}
         label, scores = classify(text, tokenizer, model)
         confidence = scores[label]
         desc = LABEL_DESCRIPTIONS[label]
         summary = f"**{label}** ({confidence:.1%} confidence)\n\n_{desc}_"
-        return summary, scores, label
+        return summary, scores
 
     with gr.Blocks(title="TakeMeter") as demo:
         gr.Markdown("## TakeMeter — r/television Discourse Classifier")
@@ -74,7 +74,7 @@ def build_gradio_app(tokenizer, model):
                 )
                 classify_btn = gr.Button("Classify", variant="primary")
             with gr.Column():
-                result_md = gr.Markdown(label="Result")
+                result_md = gr.Markdown()
                 confidence_bar = gr.Label(
                     label="Confidence scores",
                     num_top_classes=3,
@@ -83,7 +83,7 @@ def build_gradio_app(tokenizer, model):
         classify_btn.click(
             fn=predict,
             inputs=text_input,
-            outputs=[result_md, confidence_bar, gr.Textbox(visible=False)],
+            outputs=[result_md, confidence_bar],
         )
 
         gr.Examples(
@@ -100,8 +100,8 @@ def build_gradio_app(tokenizer, model):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-dir", default="./results/checkpoint-best",
-                        help="Path to fine-tuned model directory or HF model ID")
+    parser.add_argument("--model-dir", default="./takemeter-model/checkpoint-9",
+                        help="Path to fine-tuned checkpoint directory (download from Colab)")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--share", action="store_true")
     args = parser.parse_args()

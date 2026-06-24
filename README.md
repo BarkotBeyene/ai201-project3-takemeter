@@ -257,18 +257,81 @@ After fine-tuning, all 9 wrong predictions were shared with Claude and it was as
 
 ---
 
-## Deployed Interface (Stretch Feature)
+## Stretch Features
 
-A Gradio interface is available in [`src/interface.py`](src/interface.py).
+### Confidence Calibration
+
+The calibration cell in Section 7A of the notebook buckets all 33 test predictions by confidence score and measures accuracy per band. Key findings:
+
+All predictions — both correct and incorrect — fall in the 0.30–0.40 confidence band. The model never produces a prediction above ~0.40. This means the calibration curve is flat: there is no band where the model is reliably more accurate than any other, because it never expresses high confidence.
+
+The practical implication: confidence scores from this model are not meaningful as a quality signal. A threshold of "only surface predictions above 0.70 confidence" would suppress every single output. A calibrated model should show high accuracy in high-confidence buckets; this model shows the same ~73% accuracy regardless of bucket because all scores cluster near the softmax floor.
+
+**Why this happened:** softmax on small logit differences produces scores close to 1/3 (random baseline) when the model's feature weights are weak. The model learned some signal but not enough to push logits far apart — consistent with the text-structure proxy finding in the reflection section.
+
+---
+
+### Error Pattern Analysis
+
+Systematic analysis of all 9 wrong predictions across four dimensions:
+
+**Dimension 1 — Which label pair is confused?**
+
+| Pair | Count |
+|---|---|
+| reaction → analysis | 3 |
+| analysis → prediction | 3 |
+| prediction → analysis | 2 |
+| reaction → prediction | 1 |
+
+The dominant pattern is `* → analysis`: 5 of 9 errors involve the model predicting `analysis` when the true label is something else. It never predicts `reaction` for a true `prediction` post or vice versa — that temporal boundary was cleanly learned. The analysis/prediction boundary is where all the systematic failure lives.
+
+**Dimension 2 — Explicit future-tense markers**
+
+Of the posts the model should have labeled `prediction` but labeled `analysis`, most contain explicit future markers ("My prediction:", "next season", "I wonder if"). The model ignored these markers in favor of structural complexity. This is the single clearest finding: the model learned to classify by sentence structure, not temporal orientation, even when the temporal signal is explicit.
+
+**Dimension 3 — Confidence**
+
+Mean confidence on errors: ~0.36. Mean confidence on correct predictions: ~0.37. The difference is negligible — the model is equally uncertain whether it is right or wrong. Confidence is not a reliable quality signal for this model.
+
+**Generalizable pattern:** The error set is dominated by a single failure mode — multi-clause text triggering the `analysis` label regardless of whether the post is evaluative or speculative. This is systematic and reproducible. The targeted fix is more `prediction` training examples with explicit reasoning structure, so the model has enough evidence to decouple structural complexity from the `analysis` label.
+
+---
+
+### Inter-Annotator Reliability
+
+A helper script is available at [`src/inter_annotator.py`](src/inter_annotator.py) to generate a stratified 30-example sample for a second labeler and compute Cohen's kappa once they return it.
+
+**To generate the second-labeler CSV:**
+```bash
+python src/inter_annotator.py generate
+# Outputs: data/iaa_sample.csv (30 rows, blank label column)
+# Send to a second labeler — they fill in: analysis, reaction, or prediction
+```
+
+**To score agreement after they return it:**
+```bash
+python src/inter_annotator.py score --second data/second_labeler.csv
+```
+
+> _(Inter-annotator scores will be filled in here once a second labeler's CSV is available.)_
+
+The most likely disagreement zone is `reaction` vs `analysis` for posts that name a specific element without evaluating it — e.g., "Oh I LOVE that Dale of all people is going to end the season as the person keeping most of the island's secrets." The decision rule (delight at an observation ≠ evaluation of a craft choice) is precise in writing but requires judgment in practice.
+
+---
+
+### Deployed Interface
+
+A Gradio web interface is available at [`src/interface.py`](src/interface.py). It loads the fine-tuned checkpoint and classifies arbitrary posts with per-label confidence scores.
 
 **To run:**
 ```bash
 pip install gradio transformers torch
-# Download the best checkpoint from Colab first
-python src/interface.py --model-dir ./takemeter-model/checkpoint-best
+# Download the checkpoint folder from Colab (takemeter-model/checkpoint-NNN)
+python src/interface.py --model-dir ./takemeter-model/checkpoint-9
 ```
 
-The interface accepts any post text, runs it through the fine-tuned model, and displays the predicted label and per-class confidence scores.
+The interface opens at `http://localhost:7860` with three pre-loaded example posts (one per label). Pass `--share` to get a public Gradio URL for remote demo or grader access.
 
 ---
 
