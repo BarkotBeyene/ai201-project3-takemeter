@@ -1,0 +1,11 @@
+praw>=7.7
+groq>=0.9
+transformers>=4.40
+datasets>=2.18
+scikit-learn>=1.4
+torch>=2.2
+gradio>=4.26
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
+seaborn>=0.13

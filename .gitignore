@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+results/
+*.pt
+*.bin
+*.safetensors
+logs/
+.fetch-client/
